@@ -13,6 +13,12 @@ def match_keyboard(fixture_id):
             ],
             [
                 InlineKeyboardButton(
+                    text="⚽ События",
+                    callback_data=f"events_{fixture_id}"
+                )
+            ],
+            [
+                InlineKeyboardButton(
                     text="🤖 AI Анализ",
                     callback_data=f"ai_{fixture_id}"
                 )
