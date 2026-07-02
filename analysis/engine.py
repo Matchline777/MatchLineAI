@@ -49,6 +49,7 @@ class AnalysisResult:
     over35_probability: float
     bet_score: float
     bet_rating: str
+    bet_confidence: str
 
     def to_dict(self):
         return asdict(self)
@@ -166,6 +167,38 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
     team_strength_multiplier = 1 + (team_strength_bonus / 2000)
     goal_probability = goal_probability * team_strength_multiplier
     goal_probability = _clamp(goal_probability)
+    form_bonus = _context_number(
+        match_context,
+        f"{side}_form_score",
+        "form_score",
+        50,
+    )
+    form_multiplier = 1 + (form_bonus / 3000)
+    goal_probability = goal_probability * form_multiplier
+    goal_probability = _clamp(goal_probability)
+    odds = _context_number(
+        match_context,
+        f"{side}_odds",
+        "odds",
+        2.0,
+    )
+
+    if odds > 0:
+        odds_multiplier = 1 + ((2.5 - min(odds, 2.5)) / 20)
+    else:
+        odds_multiplier = 1.0
+
+    goal_probability = goal_probability * odds_multiplier
+    goal_probability = _clamp(goal_probability)
+    h2h_bonus = _context_number(
+        match_context,
+        f"{side}_h2h_score",
+        "h2h_score",
+        50,
+    )
+    h2h_multiplier = 1 + ((h2h_bonus - 50) / 1000)
+    goal_probability = goal_probability * h2h_multiplier
+    goal_probability = _clamp(goal_probability)
     goal_signal = GoalSignal(
         pressure,
         momentum,
@@ -237,7 +270,7 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
     )
     over25_probability = over_model.over25_probability()
     over35_probability = over_model.over35_probability()
-    bet_score, bet_rating = BetStrength(
+    bet_score, bet_rating, bet_confidence = BetStrength(
         next_goal_probability,
         over25_probability,
         over35_probability,
@@ -303,6 +336,7 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
         over35_probability=round(over35_probability, 1),
         bet_score=round(bet_score, 1),
         bet_rating=bet_rating,
+        bet_confidence=bet_confidence,
     )
 
 

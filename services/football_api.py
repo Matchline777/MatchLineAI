@@ -76,3 +76,54 @@ def get_events(fixture_id):
         return None
 
     return response.json()
+
+
+def get_team_last_matches(team_id, last=5):
+
+    url = f"https://v3.football.api-sports.io/fixtures?team={team_id}&last={last}"
+
+    response = requests.get(url, headers=HEADERS)
+
+    print("=" * 50)
+    print("TEAM LAST MATCHES STATUS:", response.status_code)
+    print("TEAM LAST MATCHES BODY:", response.text)
+    print("=" * 50)
+
+    if response.status_code != 200:
+        return None
+
+    return response.json()
+
+
+def get_head_to_head(team1_id, team2_id, last=5):
+
+    url = f"https://v3.football.api-sports.io/fixtures/headtohead?h2h={team1_id}-{team2_id}&last={last}"
+
+    response = requests.get(url, headers=HEADERS)
+
+    print("=" * 50)
+    print("HEAD TO HEAD STATUS:", response.status_code)
+    print("HEAD TO HEAD BODY:", response.text)
+    print("=" * 50)
+
+    if response.status_code != 200:
+        return None
+
+    return response.json()
+
+
+def get_odds(fixture_id):
+
+    url = f"https://v3.football.api-sports.io/odds?fixture={fixture_id}"
+
+    response = requests.get(url, headers=HEADERS)
+
+    print("=" * 50)
+    print("ODDS STATUS:", response.status_code)
+    print("ODDS BODY:", response.text)
+    print("=" * 50)
+
+    if response.status_code != 200:
+        return None
+
+    return response.json()
