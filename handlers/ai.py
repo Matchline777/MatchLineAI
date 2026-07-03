@@ -3,7 +3,9 @@ from aiogram.types import CallbackQuery
 
 from analysis.engine import analyze, recommend_match
 from analysis.team_form import TeamForm
+from handlers.signals import format_signal
 from services.football_api import (
+    get_events,
     get_head_to_head,
     get_match,
     get_odds,
@@ -62,6 +64,43 @@ def build_match_context(match, home_stats, away_stats):
         "home_previous_shots": int(stat_number(home_stats, "Total Shots", "shots", default=0)),
         "away_previous_shots": int(stat_number(away_stats, "Total Shots", "shots", default=0)),
     }
+
+
+def build_events_context(events_data):
+    context = {
+        "recent_goal": False,
+        "recent_red_card": False,
+        "recent_substitution": False,
+    }
+    events = events_data.get("response", []) if events_data else []
+    minutes = [
+        event.get("time", {}).get("elapsed")
+        for event in events
+        if isinstance(event.get("time", {}).get("elapsed"), (int, float))
+    ]
+
+    if not minutes:
+        return context
+
+    current_minute = max(minutes)
+
+    for event in events:
+        minute = event.get("time", {}).get("elapsed")
+
+        if not isinstance(minute, (int, float)) or minute < current_minute - 5:
+            continue
+
+        event_type = str(event.get("type", "")).lower()
+        event_detail = str(event.get("detail", "")).lower()
+
+        if event_type == "goal":
+            context["recent_goal"] = True
+        elif event_type == "card" and "red" in event_detail:
+            context["recent_red_card"] = True
+        elif event_type == "subst":
+            context["recent_substitution"] = True
+
+    return context
 
 
 def calculate_team_form(team_id, last=5):
@@ -193,28 +232,34 @@ async def ai_analysis(callback: CallbackQuery):
 
     data = get_statistics(fixture_id)
     match_data = get_match(fixture_id)
-
-    if not data:
-        await callback.message.answer("Ошибка получения статистики.")
-        await callback.answer()
-        return
-
-    if len(data["response"]) < 2:
-        await callback.message.answer("Статистика пока недоступна.")
-        await callback.answer()
-        return
-
-    home = data["response"][0]
-    away = data["response"][1]
-
-    home_stats = statistics_to_dict(home["statistics"])
-    away_stats = statistics_to_dict(away["statistics"])
+    events_data = get_events(fixture_id)
+    events_context = build_events_context(events_data)
     match = {}
 
     if match_data and match_data.get("response"):
         match = match_data["response"][0]
 
+    stats_available = data and len(data.get("response", [])) >= 2
+    warning_text = ""
+
+    if stats_available:
+        home = data["response"][0]
+        away = data["response"][1]
+        home_stats = statistics_to_dict(home["statistics"])
+        away_stats = statistics_to_dict(away["statistics"])
+    else:
+        teams = match.get("teams", {})
+        home = {"team": teams.get("home", {})}
+        away = {"team": teams.get("away", {})}
+        home_stats = {}
+        away_stats = {}
+        warning_text = (
+            "⚠️ Live-статистика API недоступна. "
+            "Анализ построен на базовых данных матча.\n\n"
+        )
+
     match_context = build_match_context(match, home_stats, away_stats)
+    match_context.update(events_context)
     home_team_id = home["team"].get("id")
     away_team_id = away["team"].get("id")
     home_form = calculate_team_form(home_team_id) if home_team_id else TeamForm(0, 0, 0, 0, 0)
@@ -236,8 +281,16 @@ async def ai_analysis(callback: CallbackQuery):
     home_result = analyze(home_stats, away_stats, match_context=match_context, side="home")
     away_result = analyze(away_stats, home_stats, match_context=match_context, side="away")
     recommendation = recommend_match(home_result, away_result)
+    signal_message = format_signal(
+        match_name=f"{home['team']['name']} - {away['team']['name']}",
+        next_goal_probability=max(home_result.next_goal_probability, away_result.next_goal_probability),
+        over25_probability=max(home_result.over25_probability, away_result.over25_probability),
+        bet_score=max(home_result.bet_score, away_result.bet_score),
+        bet_rating=home_result.bet_rating if home_result.bet_score >= away_result.bet_score else away_result.bet_rating,
+    )
 
     text = (
+        warning_text +
         "🤖 MATCHLINE AI\n\n"
         f"🏠 Home: {home['team']['name']}\n"
         f"✈️ Away: {away['team']['name']}\n\n"
@@ -269,7 +322,8 @@ async def ai_analysis(callback: CallbackQuery):
         f"Home: {home_result.bet_rating}\n"
         f"Away: {away_result.bet_rating}\n\n"
         "Recommendation:\n"
-        f"{recommendation}"
+        f"{recommendation}\n\n"
+        f"{signal_message}"
     )
 
     await callback.message.answer(text)

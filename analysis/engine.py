@@ -199,6 +199,104 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
     h2h_multiplier = 1 + ((h2h_bonus - 50) / 1000)
     goal_probability = goal_probability * h2h_multiplier
     goal_probability = _clamp(goal_probability)
+    if match_context.get("recent_goal", False):
+        goal_probability *= 0.96
+        goal_probability = _clamp(goal_probability)
+    if match_context.get("recent_red_card", False):
+        goal_probability *= 1.05
+        goal_probability = _clamp(goal_probability)
+    if match_context.get("recent_substitution", False):
+        goal_probability *= 1.02
+        goal_probability = _clamp(goal_probability)
+    home_score = match_context.get("home_score", 0)
+    away_score = match_context.get("away_score", 0)
+    if side == "home":
+        if home_score < away_score:
+            goal_probability *= 1.08
+            goal_probability = _clamp(goal_probability)
+        elif home_score > away_score:
+            goal_probability *= 0.97
+            goal_probability = _clamp(goal_probability)
+    if side == "away":
+        if away_score < home_score:
+            goal_probability *= 1.08
+            goal_probability = _clamp(goal_probability)
+        elif away_score > home_score:
+            goal_probability *= 0.97
+            goal_probability = _clamp(goal_probability)
+    minute = int(match_context.get("minute", 0))
+    if minute >= 75:
+        if side == "home" and home_score < away_score:
+            goal_probability *= 1.05
+            goal_probability = _clamp(goal_probability)
+        if side == "away" and away_score < home_score:
+            goal_probability *= 1.05
+            goal_probability = _clamp(goal_probability)
+    if minute >= 85:
+        if side == "home" and home_score < away_score:
+            goal_probability *= 1.05
+            goal_probability = _clamp(goal_probability)
+        if side == "away" and away_score < home_score:
+            goal_probability *= 1.05
+            goal_probability = _clamp(goal_probability)
+    corners = int(_first_value(stats, "Corner Kicks", "Corners", default=0))
+    opponent_corners = int(_first_value(opponent_stats or {}, "Corner Kicks", "Corners", default=0))
+    corner_difference = corners - opponent_corners
+    if minute >= 70:
+        if corner_difference >= 3:
+            goal_probability *= 1.03
+            goal_probability = _clamp(goal_probability)
+        if corner_difference >= 5:
+            goal_probability *= 1.03
+            goal_probability = _clamp(goal_probability)
+    shots_on_target = int(_first_value(stats, "Shots on Goal", "Shots on Target", default=0))
+    opponent_shots_on_target = int(
+        _first_value(opponent_stats or {}, "Shots on Goal", "Shots on Target", default=0)
+    )
+    shot_difference = shots_on_target - opponent_shots_on_target
+    if shot_difference >= 2:
+        goal_probability *= 1.04
+        goal_probability = _clamp(goal_probability)
+    if shot_difference >= 4:
+        goal_probability *= 1.04
+        goal_probability = _clamp(goal_probability)
+    total_shots = int(_first_value(stats, "Total Shots", "Shots total", default=0))
+    opponent_total_shots = int(
+        _first_value(opponent_stats or {}, "Total Shots", "Shots total", default=0)
+    )
+    total_shot_difference = total_shots - opponent_total_shots
+    if total_shot_difference >= 5:
+        goal_probability *= 1.03
+        goal_probability = _clamp(goal_probability)
+    if total_shot_difference >= 10:
+        goal_probability *= 1.03
+        goal_probability = _clamp(goal_probability)
+    possession = float(_first_value(stats, "Ball Possession", "Possession", default=50))
+    opponent_possession = float(
+        _first_value(opponent_stats or {}, "Ball Possession", "Possession", default=50)
+    )
+    possession_difference = possession - opponent_possession
+    if minute >= 60:
+        if possession_difference >= 15:
+            goal_probability *= 1.02
+            goal_probability = _clamp(goal_probability)
+        if possession_difference >= 25:
+            goal_probability *= 1.02
+            goal_probability = _clamp(goal_probability)
+    if minute >= 80 and home_score == away_score:
+        goal_probability *= 1.04
+        goal_probability = _clamp(goal_probability)
+    goal_difference = abs(home_score - away_score)
+    if minute >= 70 and goal_difference >= 2:
+        goal_probability *= 0.97
+        goal_probability = _clamp(goal_probability)
+    if minute >= 85:
+        if goal_probability >= 70:
+            goal_probability *= 1.02
+            goal_probability = _clamp(goal_probability)
+        elif goal_probability <= 30:
+            goal_probability *= 0.98
+            goal_probability = _clamp(goal_probability)
     goal_signal = GoalSignal(
         pressure,
         momentum,
@@ -222,6 +320,16 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
         int(_first_value(stats, "Dangerous Attacks", "Dangerous attacks", default=0)),
         int(_first_value(opponent_stats or {}, "Dangerous Attacks", "Dangerous attacks", default=0)),
     ).goal_probability_bonus()
+    if minute >= 60:
+        attack_ratio = max(0.1, (shots_on_target + dangerous_bonus / 10))
+
+        if attack_ratio >= 8:
+            goal_probability *= 1.03
+            goal_probability = _clamp(goal_probability)
+
+        if attack_ratio >= 12:
+            goal_probability *= 1.03
+            goal_probability = _clamp(goal_probability)
     dangerous_multiplier = 1 + (dangerous_bonus / 1000)
     goal_probability = goal_probability * dangerous_multiplier
     goal_probability = _clamp(goal_probability)
@@ -254,6 +362,32 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
     corner_multiplier = 1 + (corner_bonus / 1000)
     goal_probability = goal_probability * corner_multiplier
     goal_probability = _clamp(goal_probability)
+    fouls = int(_first_value(opponent_stats or {}, "Fouls", "Fouls committed", default=0))
+    if minute >= 60:
+        if fouls >= 12:
+            goal_probability *= 1.02
+            goal_probability = _clamp(goal_probability)
+        if fouls >= 18:
+            goal_probability *= 1.02
+            goal_probability = _clamp(goal_probability)
+
+    offsides = int(_first_value(stats, "Offsides", "Offsides", default=0))
+    if minute >= 60:
+        if offsides >= 3:
+            goal_probability *= 0.99
+            goal_probability = _clamp(goal_probability)
+        if offsides >= 5:
+            goal_probability *= 0.98
+            goal_probability = _clamp(goal_probability)
+
+    if minute >= 90:
+        goal_probability *= 0.99
+        goal_probability = _clamp(goal_probability)
+
+    if minute >= 90 and goal_difference == 1:
+        goal_probability *= 1.02
+        goal_probability = _clamp(goal_probability)
+
     next_goal_probability = NextGoalModel(
         goal_signal,
         team_strength_bonus,
@@ -263,12 +397,30 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
         fatigue_bonus,
         phase.time_pressure(),
     ).next_goal_probability()
+
+    if minute >= 75 and match_context.get("recent_goal", False):
+        next_goal_probability *= 0.98
+        next_goal_probability = _clamp(next_goal_probability)
+
+    if minute >= 75 and match_context.get("recent_red_card", False):
+        next_goal_probability *= 1.03
+        next_goal_probability = _clamp(next_goal_probability)
+
     over_model = OverModel(
         next_goal_probability,
         int(team.minute),
         int(team.team_score + team.opponent_score),
     )
     over25_probability = over_model.over25_probability()
+
+    if minute >= 80 and over25_probability >= 70:
+        over25_probability *= 1.02
+        over25_probability = _clamp(over25_probability)
+
+    if minute >= 80 and over25_probability <= 30:
+        over25_probability *= 0.98
+        over25_probability = _clamp(over25_probability)
+
     over35_probability = over_model.over35_probability()
     bet_score, bet_rating, bet_confidence = BetStrength(
         next_goal_probability,
@@ -320,6 +472,18 @@ def analyze(stats, opponent_stats=None, match_context=None, side="home"):
             (components["time"], 0.04),
         )
     )
+
+    debug_factors = {
+        "pressure": pressure,
+        "momentum": momentum,
+        "goal_probability": goal_probability,
+        "next_goal_probability": next_goal_probability,
+        "over25_probability": over25_probability,
+        "over35_probability": over35_probability,
+        "bet_score": bet_score,
+        "bet_rating": bet_rating,
+    }
+    print("AI DEBUG:", debug_factors)
 
     return AnalysisResult(
         pressure=round(pressure, 1),

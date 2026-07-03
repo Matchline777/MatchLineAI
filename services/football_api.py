@@ -16,7 +16,7 @@ def get_live_matches():
 
     today = datetime.now().strftime("%Y-%m-%d")
 
-    url = f"https://v3.football.api-sports.io/fixtures?date={today}"
+    url = "https://v3.football.api-sports.io/fixtures?live=all"
 
     response = requests.get(url, headers=HEADERS)
 
