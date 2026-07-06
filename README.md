@@ -1,0 +1,9 @@
+## Environment Variables
+
+BOT_TOKEN=...
+
+FOOTBALL_API_KEY=...
+
+SIGNAL_CHAT_ID=...
+
+SIGNAL_CHAT_ID is the Telegram chat or channel ID where automatic AI signals are sent.
