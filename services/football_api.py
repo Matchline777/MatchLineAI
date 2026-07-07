@@ -21,6 +21,7 @@ def get_live_matches():
     response = requests.get(url, headers=HEADERS)
 
     print("LIVE STATUS:", response.status_code)
+    print("LIVE BODY:", response.text)
 
     if response.status_code != 200:
         print(response.text)
