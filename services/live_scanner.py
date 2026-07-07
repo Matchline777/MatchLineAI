@@ -21,6 +21,24 @@ async def scan_live_matches(bot, chat_id):
 
             if data and data.get("response"):
                 for match in data["response"][:5]:
+                    league_name = match.get("league", {}).get("name", "")
+                    league_country = match.get("league", {}).get("country", "")
+                    home_team = match.get("teams", {}).get("home", {}).get("name")
+                    away_team = match.get("teams", {}).get("away", {}).get("name")
+                    minute = match.get("fixture", {}).get("status", {}).get("elapsed") or 0
+                    status = match.get("fixture", {}).get("status", {}).get("short", "")
+
+                    print(
+                        "API MATCH:",
+                        league_country,
+                        league_name,
+                        status,
+                        minute,
+                        home_team,
+                        "-",
+                        away_team,
+                    )
+
                     fixture_id = match.get("fixture", {}).get("id")
                     home_team = match.get("teams", {}).get("home", {}).get("name")
                     away_team = match.get("teams", {}).get("away", {}).get("name")
